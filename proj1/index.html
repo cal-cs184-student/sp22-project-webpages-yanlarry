@@ -1,7 +1,259 @@
-<html>
-	<head>
-	</head>
-	<body>
-		Project 1 here
-	</body>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<style>
+  body {
+    padding: 100px;
+    width: 1000px;
+    margin: auto;
+    text-align: left;
+    font-weight: 300;
+    font-family: 'Open Sans', sans-serif;
+    color: #121212;
+  }
+  h1, h2, h3, h4 {
+    font-family: 'Source Sans Pro', sans-serif;
+  }
+</style>
+<title>CS 184 Rasterizer</title>
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<link href="https://fonts.googleapis.com/css?family=Open+Sans|Source+Sans+Pro" rel="stylesheet">
+</head>
+
+
+<body>
+
+<h1 align="middle">CS 184: Computer Graphics and Imaging, Spring 2018</h1>
+<h1 align="middle">Project 1: Rasterizer</h1>
+<h2 align="middle">Larry Yan, CS184</h2>
+
+<br><br>
+
+<div>
+
+<h2 align="middle">Overview</h2>
+<!-- <p>Give a high-level overview of what you implemented in this project. Think about what you've built as a whole. Share your thoughts on what interesting things you've learned from completing the project.</p> -->
+<p>In this project, I implemented elements of a basic rasterizer, which is able to display svg files.
+    In particular, I incrementally increased the complexity of drawing triangles. First, I rasterized triangles by 
+    coloring points found to be inside its bounds. This was then extended with supersampling, allowing for smoother 
+    transitions along high frequency edges. After a small detour in implementing transformation matrices, I allowed 
+    for triangles with color gradients using barycentric coordinates. Finally, I rasterized triangles that drew from 
+    a reference texture, with different methods of selecting which texture pixel to display as well as determining 
+    what level of detail to employ.</p>
+
+<h2 align="middle">Section I: Rasterization</h2>
+
+<h3 align="middle">Part 1: Rasterizing single-color triangles</h3>
+
+    <p> In order to rasterize a triangle with given endpoints, I first rearranged the line testing equations from lecture 
+    into the form Ax + By + C >= 0 for each edge, and calculated those constants for the triangle. I then determined which 
+    pixels to test for: I chose to test all points within the bounding box of the triangle (min x, min y) to (max x, max y) 
+    for simplicity (which is indeed no worse than itself). Additionally, I also checked to make sure that the bounding box 
+    did not exceed the boundaries of the screen, either with a value less than zero or greater than the width/height. I then 
+    looped through the pixels of this bounding box and calculated the three line equations for each pixel; if they were all 
+    the same, I would fill the pixel in with the triangle's color. </p>
+
+    <img src="images/part1.png" align="middle" width="1000px"/>
+    <figcaption align="middle">Screenshot depicting jaggies on thin triangle corners.</figcaption>
+    <br />
+
+<!--
+
+<p>Here is an example 2x2 gridlike structure using an HTML table. Each <b>tr</b> is a row and each <b>td</b> is a column in that row. You might find this useful for framing and showing your result images in an organized fashion.</p>
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="images/image1.png" align="middle" width="400px"/>
+        <figcaption align="middle">Caption goes here.</figcaption>
+      </td>
+      <td>
+        <img src="images/image2.png" align="middle" width="400px"/>
+        <figcaption align="middle">Caption goes here.</figcaption>
+      </td>
+    </tr>
+    <br>
+    <tr>
+      <td>
+        <img src="images/image3.png" align="middle" width="400px"/>
+        <figcaption align="middle">Caption goes here.</figcaption>
+      </td>
+      <td>
+        <img src="images/image4.png" align="middle" width="400px"/>
+        <figcaption align="middle">Caption goes here.</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+
+-->
+
+<h3 align="middle">Part 2: Antialiasing triangles</h3>
+
+    <p>For supersampling, I modified the existing sample buffer so that for all of the places where it was created, 
+    resized, or cleared, it would be of size (width * height * sample_rate). Originally, I had attempted to group 
+    samples in a square (such that the samples for a single pixel would be in sqrt(sample_rate) rows and sqrt(sample_rate)
+    columns), as it was slightly more visually intuitive and I had already started sampling in that way. However, as I was
+    encountering multiple horizontal copies of the image that I could not resolve, I switched to sample_rate copies for each
+    pixel instead, which did resolve the issue. To determine where to sample, for each pixel, I would instead perform the 
+    line calculations for samples at 1/(sqrt(rate)) intervals in a grid, and color the sample buffer accordingly. To get to
+    the actual display in resolve_to_framebuffer, I summed up all of the colors for each sample in a pixel and divided by
+    the total number to get an average, which is displayed. This provides partial coloring to pixels along the edges of color
+    transitions, providing a smoother appearance. </p>
+
+    <div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="images/part2_1.png" align="middle" width="400px"/>
+        <figcaption align="middle">Supersampling rate 1</figcaption>
+      </td>
+      <td>
+        <img src="images/part2_4.png" align="middle" width="400px"/>
+        <figcaption align="middle">Supersampling rate 4</figcaption>
+      </td>
+    </tr>
+    <br>
+    <tr>
+      <td>
+        <img src="images/part2_16.png" align="middle" width="400px"/>
+        <figcaption align="middle">Supersampling rate 16</figcaption>
+      </td>
+      <td>
+        <p>For higher supersampling rates, the larger number of samples more accurately reflects the true fraction of each pixel
+          that is of each color. By averaging the color values for each sample, the pixel might now represent details that were not
+          previously shown in fewer samples, and provide a smoother representation of edge transitions. In these corners, the jagged
+          edges were produced by coloring full pixels based on whether their centers were in the triangle; with more samples, pixels
+          partially in the triangle will get some coloring, while pixels with parts outside will appear lighter, providing an overall
+          smoother gradient.</p>
+      </td>
+    </tr>
+  </table>
+</div>
+
+<h3 align="middle">Part 3: Transforms</h3>
+
+    <p>This part was relatively simple, as I only returned the three transformation matrices (and converted to radians!), and spent 
+    the majority of my time shifting red boxes around slightly until they looked acceptable.</p>
+
+    <img src="images/part3.png" align="middle" width="1000px"/>
+    <figcaption align="middle">Cubeman leaping in an attempt to catch a falling object.</figcaption>
+    <br />
+
+<h2 align="middle">Section II: Sampling</h2>
+
+<h3 align="middle">Part 4: Barycentric coordinates</h3>
+
+    <img src="images/part4_0.png" align="middle" width="1000px"/>
+    <figcaption align="middle">Barycentric coordinates represent how much of each vertex coordinate a given point within the triangle
+    consists of, and sum to 1. The sum of each barycentric coordinate multiplied by the value of its corresponding vertex returns the location of the
+    original point. In the above image, the color of each pixel is a weighted sum of red, green, and blue based on its barycentric coordinates.
+    At the vertices, the colors are pure, as they can be represented with exactly that vertex. Along the edges, a point can be represented
+    as a sum of two vertices, such as green and blue on the top right side. Closer to the top, a point would be more green and have a higher
+    value in the green vertex coordinate. At the exact center, all three vertices have equal weight (coordinates 1/3, 1/3, 1/3) and the color 
+    is grayish.</figcaption>
+    <br />
+
+    <img src="images/part4_7.png" align="middle" width="1000px"/>
+    <figcaption align="middle">Screenshot of test_7, sample rate 1.</figcaption>
+    <br />
+
+<h3 align="middle">Part 5: "Pixel sampling" for texture mapping</h3>
+
+    <p>Pixel sampling involves taking a point on a triangle to be rasterized and attempting to determine its color value based
+    on a corresponding location on a reference texture. To rasterize a triangle with a texture, we are given the vertices of the 
+    triangle itself, the vertices of its corresponding triangle on the texture, and the texture itself. To color each point on 
+    our rasterized triangle, we first find its barycentric coordinates, then look up the color on the relevant texture level with
+    the corresponding coordinates on the texture triangle. Pixel sampling methods differ in determining what exactly is the correct
+    color value to return: nearest simply returns the color value of the nearest texel (we round the texture cartesian coordinate), 
+    while bilinear returns a weighted average of the four adjacent texels, based on how close they are (we take the floor and ceiling
+    of x and y texel coordinates, then perform linear interpolations to get the color value, with additional bounds for extreme values).</p>
+
+
+    <div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="images/part5_n1.png" align="middle" width="400px"/>
+        <figcaption align="middle">Nearest, 1 sample.</figcaption>
+      </td>
+      <td>
+        <img src="images/part5_n16.png" align="middle" width="400px"/>
+        <figcaption align="middle">Nearest, 16 samples.</figcaption>
+      </td>
+    </tr>
+    <br>
+    <tr>
+      <td>
+        <img src="images/part5_b1.png" align="middle" width="400px"/>
+        <figcaption align="middle">Bilinear, 1 sample.</figcaption>
+      </td>
+      <td>
+        <img src="images/part5_b16.png" align="middle" width="400px"/>
+        <figcaption align="middle">Bilinear, 16 samples.</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+
+    <p>These is not a significant difference between sampling level, with most noticable differences along the edges of the image
+    (smoother borders for 16). Between nearest and bilinear sampling, nearest tends to be sharper and blockier, and is more liekly
+    to miss fine detail, such as the white grid lines. Using the color of the closest texel might miss out on possible sharp differences
+    in color in adjacent nearby texels, which would not be accounted for. In comparison, bilinear sampling is smoother, and shows
+    fine changes to a greater extent, though not necessarily crispness, due to its averaging, similarly to supersampling.</p>
+
+<h3 align="middle">Part 6: "Level sampling" with mipmaps for texture mapping</h3>
+
+    <p>Level sampling involves determining what level (what level of detail) of the texture to sample from. To implement this, I 
+    additionally stored the barycentric coordinates of the pixels 1 unit down and right of the sample pixel and mapped it onto the
+    texture, then calculated its level. This represents the approximate area of the texture and the level of detail needed for that
+    region; a larger area covered means that only coarse detail is needed, and a higher level map could be used. A smaller area covered
+    means that adjacent pixels and fine detail is necessary, requiring a lower level. Nearest level sampling simply chooses the color of 
+    the nearest (rounded) level, while bilinear performs a weighted sum over the colors returned from the two closest levels similar 
+    to that for pixels. </p>
+
+    <p>Supersampling requires more memory to store a larger sample buffer, and requires a corresponding decrease in speed, as all
+    computations must be repeated for each sample. Supersampling does allow for smoother images, which is espeicially visible along sharp
+    borders of lower detail textures. Bilinear pixel sampling requires more computations than nearest, but not much more memory, and leads
+    to a smoother transition between textured pixels. Bilinear level sampling again requires increased computations and slower speed, but
+    no significant memory, while smoothing the transition between detail levels compared to nearest level sampling.</p>
+
+    <div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="images/part6_1.png" align="middle" width="400px"/>
+        <figcaption align="middle">L_ZERO, P_NEAREST. Sharp at all locations, somewhat jagged.</figcaption>
+      </td>
+      <td>
+        <img src="images/part6_2.png" align="middle" width="400px"/>
+        <figcaption align="middle">L_ZERO, P_LINEAR. Sharp at all locations, but smoothed out.</figcaption>
+      </td>
+    </tr>
+    <br>
+    <tr>
+      <td>
+        <img src="images/part6_4.png" align="middle" width="400px"/>
+        <figcaption align="middle">L_NEAREST, P_NEAREST. Sharp at close (magnified) points, blurrier further (smaller), somewhat jagged.</figcaption>
+      </td>
+      <td>
+        <img src="images/part6_3.png" align="middle" width="400px"/>
+        <figcaption align="middle">L_NEAREST, P_LINEAR. Sharp at close (magnified) points, blurrier further (smaller), smoothed out.</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+
+
+<h2 align="middle">Section III: Art Competition</h2>
+<p>If you are not participating in the optional art competition, don't worry about this section!</p>
+
+<h3 align="middle">Part 7: Draw something interesting!</h3>
+
+<br /><br />
+   
+<p>Link: <a href="https://cal-cs184-student.github.io/sp22-project-webpages-yanlarry/">https://cal-cs184-student.github.io/sp22-project-webpages-yanlarry/</a></p>
+
+</body>
 </html>
