@@ -1,7 +1,331 @@
-<html>
-	<head>
-	</head>
-	<body>
-		Project 2 here
-	</body>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+
+<head>
+  <style>
+    body {
+      padding: 100px;
+      width: 1000px;
+      margin: auto;
+      text-align: left;
+      font-weight: 300;
+      font-family: 'Open Sans', sans-serif;
+      color: #121212;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4 {
+      font-family: 'Source Sans Pro', sans-serif;
+    }
+  </style>
+  <title>CS 184 Mesh Editor</title>
+  <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+  <link href="https://fonts.googleapis.com/css?family=Open+Sans|Source+Sans+Pro" rel="stylesheet">
+</head>
+
+
+<body>
+
+  <h1 align="middle">CS 184: Computer Graphics and Imaging, Spring 2022</h1>
+  <h1 align="middle">Project 2: Mesh Editor</h1>
+  <h2 align="middle">Larry Yan, CS184</h2>
+
+  <br><br>
+
+  <div>
+
+    <h2 align="middle">Overview</h2>
+    <!-- <p>Give a high-level overview of what you implemented in this project. Think about what you've built as a whole.
+      Share your thoughts on what interesting things you've learned from completing the project.</p> -->
+      <p>In this project, I implemented elements of rendering and manipulating meshes. First, I implemented the recursive logic
+        for rendering bezier curves and surfaces, allowing for curved surfaces to be drawn. I then allowed for smoother shading
+        with vertex normals, as well as mesh processing elements with edge flipping and splitting, before finally utilizing those
+        in order to upsample meshes. Seeing the rendered meshes change based on the implemented functions, as well as the interface
+        itself, was very impressive. Parts 4 and 5 did somewhat feel like an exercise in drawing a diagram and assigning pointers,
+        but successfully doing so was nice. 
+      </p>
+
+    <h2 align="middle">Section I: Bezier Curves and Surfaces</h2>
+
+    <h3 align="middle">Part 1: Bezier curves with 1D de Casteljau subdivision</h3>
+
+    <p>De Casteljau's algorithm is a recursive procedure for finding points on a bezier curve from its control points. From n control
+      points, we find the next level of (n-1) intermediate points by interpolating each set of neighboring control points at some value
+      t. This process is repeated with the intermediate points until only one point remains, which lies on the bezier curve. Repeating
+      this process for differnt t can produce the full curve. For part 1, the recursive function takes a vector of Vector2D coordinates,
+      which are then interpolated with float t to produce a new vector for the next step.
+    </p>
+
+    <div align="middle">
+      <table style="width=100%">
+        <tr>
+          <td>
+            <img src="images/part1-1.png" align="middle" width="300px" />
+            <figcaption align="middle">Step 1.</figcaption>
+          </td>
+          <td>
+            <img src="images/part1-2.png" align="middle" width="300px" />
+            <figcaption align="middle">Step 2.</figcaption>
+          </td>
+          <td>
+            <img src="images/part1-3.png" align="middle" width="300px" />
+            <figcaption align="middle">Step 3.</figcaption>
+          </td>
+        </tr>
+        <br>
+        <tr>
+          <td>
+            <img src="images/part1-4.png" align="middle" width="300px" />
+            <figcaption align="middle">Step 4.</figcaption>
+          </td>
+          <td>
+            <img src="images/part1-5.png" align="middle" width="300px" />
+            <figcaption align="middle">Step 5.</figcaption>
+          </td>
+          <td>
+            <img src="images/part1-6.png" align="middle" width="300px" />
+            <figcaption align="middle">With curve.</figcaption>
+          </td>
+        </tr>
+      </table>
+    </div>
+    <figcaption align="middle">Steps to evaluating a 6 control point bezier curve.</figcaption>
+    <br>
+    <br>
+    <img src="images/part1-diff.png" align="middle" width="1000px"/>
+    <br>
+    <figcaption align="middle">The curve with shifted control points.</figcaption>
+    <br>
+    <br>
+
+  <!--
+    <p>Here is an example 2x2 gridlike structure using an HTML table. Each <b>tr</b> is a row and each <b>td</b> is a
+      column in that row. You might find this useful for framing and showing your result images in an organized fashion.
+    </p>
+
+    <div align="middle">
+      <table style="width=100%">
+        <tr>
+          <td>
+            <img src="images/image1.png" align="middle" width="400px" />
+            <figcaption align="middle">Caption goes here.</figcaption>
+          </td>
+          <td>
+            <img src="images/image2.png" align="middle" width="400px" />
+            <figcaption align="middle">Caption goes here.</figcaption>
+          </td>
+        </tr>
+        <br>
+        <tr>
+          <td>
+            <img src="images/image3.png" align="middle" width="400px" />
+            <figcaption align="middle">Caption goes here.</figcaption>
+          </td>
+          <td>
+            <img src="images/image4.png" align="middle" width="400px" />
+            <figcaption align="middle">Caption goes here.</figcaption>
+          </td>
+        </tr>
+      </table>
+    </div>
+  -->
+
+
+    <h3 align="middle">Part 2: Bezier surfaces with separable 1D de Casteljau subdivision</h3>
+
+    <p>For bezier surfaces, instead of having n control points, we instead have n^2 points, where we first evaluate
+      n bezier curves along one axis, producing points at some value u, then use those points as the control points
+      for a second bezier curve along another axis for values v. By varying u and v, the full surface can be drawn.
+      The overall recursive step is the same as in part 1 but with Vector3Ds, and additional functions for evaluating
+      a 1D curve point (recursively call the step until only one point remains) and evaluating a curve (get the points
+      for the n 1D curves, then use those for another 1D curve in the other direction) were used.
+    </p>
+
+    <img src="images/part2.png" align="middle" width="1000px"/>
+    <br>
+    <figcaption align="middle">A teapot made of bezier surfaces.</figcaption>
+    <br>
+    <br>
+
+
+    <h2 align="middle">Section II: Sampling</h2>
+
+    <h3 align="middle">Part 3: Average normals for half-edge meshes</h3>
+
+    <p>To implement area-weighted vertex normals, I iterated through the faces adjacent to the vertex, iterating halfedges
+      and getting their vertex positions, which I used to construct two vectors representing the sides of that triangle. I
+      took a cross product of those vectors (proportional to the size of the triangles) and acumulated those, and after summing
+      the products for all the faces, I normalized them. I also negated the sum in order for the vector to point outward (likely
+      due to the order in which I multiplied the vectors for the cross product).
+    </p>
+    <div align="middle">
+      <table style="width=100%">
+        <tr>
+          <td>
+            <img src="images/part3-0.png" align="middle" width="400px" />
+            <figcaption align="middle">Default shading without vertex normals.</figcaption>
+          </td>
+          <td>
+            <img src="images/part3-1.png" align="middle" width="400px" />
+            <figcaption align="middle">Phong shading with vertex normals.</figcaption>
+          </td>
+        </tr>
+        </table>
+        </div>
+
+    <h3 align="middle">Part 4: Half-edge flip</h3>
+
+    <div align="middle">
+      <img src="images/part4.png" align="middle" width="600px" />
+      <figcaption align="middle">Diagram of changes to mesh elements used for this part.</figcaption>
+    </div>
+    <p>To implement edge flipping, I drew out a diagram of the changes, then reassigned any pointers that needed to be changed.
+      There was no significant debugging difficulties, with only two main issues; in the first, I forgot to assign values to the
+      faces (set f = h->face()), and I was segfaulting on edge flipping because I was attempting to access null. In the second,
+      I was seeing missing faces, but this was self-inflicted, as when debugging the first issue, I forgot to remove an early return
+      statement before setting face pointers, resulting in detached faces.
+    </p>
+
+    <div align="middle">
+      <table style="width=100%">
+        <tr>
+          <td>
+            <img src="images/part4-1.png" align="middle" width="400px" />
+            <figcaption align="middle">Teapot before flips.</figcaption>
+          </td>
+          <td>
+            <img src="images/part4-2.png" align="middle" width="400px" />
+            <figcaption align="middle">Teapot after flips.</figcaption>
+          </td>
+        </tr>
+        </table>
+        </div>
+
+    <h3 align="middle">Part 5: Half-edge split</h3>
+
+    <div align="middle">
+      <img src="images/part5.png" align="middle" width="600px" />
+      <figcaption align="middle">Diagram of changes to mesh elements used for this part.</figcaption>
+    </div>
+    <p>To implement edge splits, I followed a similar procedure as in the previous part, using the above diagram to reassign
+      pointers. Additionally, several new mesh elements were created, which were added via new[element]() functions and pointers
+      set with setNeighbors(). For this part, there were no significant debugging issues, with only one failure because I forgot
+      to initialize two new edges.
+    </p>
+    <div align="middle">
+      <table style="width=100%">
+        <tr>
+          <td>
+            <img src="images/part5-1.png" align="middle" width="300px" />
+            <figcaption align="middle">Teapot before splits.</figcaption>
+          </td>
+          <td>
+            <img src="images/part5-2.png" align="middle" width="300px" />
+            <figcaption align="middle">Teapot after splits.</figcaption>
+          </td>
+          <td>
+            <img src="images/part5-3.png" align="middle" width="300px" />
+            <figcaption align="middle">Teapot with both flips and splits.</figcaption>
+          </td>
+        </tr>
+        </table>
+        </div>
+
+    <h3 align="middle">Part 6: Loop subdivision for mesh upsampling</h3>
+
+    <p>For loop subdivision, I generally followed the five step process described in the comments. First, I iterated through
+      all of the preexiting verticies and calculated their new positions with the weighted sum formula from the sum of the 
+      positions of all adjacent vertices and the degree of the vertex. I also marked these vertices as not new. For the second
+      part, for all non-boundary edges, I calculated the new positions of the vertices that would be on them, and also marked
+      these edges as not new. For the third part, I iterated through all edges and split those that were not boundaries and not
+      new. I also set the vertex::newPosition to edge:newPosition for each new vertex. When testing, I found that I was infinite-looping
+      during this part: I discovered that isNew for edges was not immediately set for all new edges, but was intended only those inside an 
+      original triangle. Instead, I decided to manually set isNew to be true for the newly created edges in splitEdge, which allowed
+      this part to split the original edges properly. For the fourth part, I iterated through all vertices, and for those that
+      were not new (from split edges), I took the edge associated with their half-edge and marked it as not new. Based on the way
+      I implemented splitEdge, this would always be the new half of the original split edge. Then, I could iterate through all
+      edges and flip all the new edges between a new and old vertex. For part 5, I just iterated through all vertices again, and
+      set their positions to newPosition, as all of them had already had that set properly.
+    </p>
+
+    <p>Generally, loop subdivision removes sharp edges and rounds them out. Splitting the
+      edges ahead of time reduces this effect, as the vertices in a plane do not cause movement, while those that
+      are on the edges have vertices closer to them, reducing the rounding effect.</p>
+    <div align="middle">
+      <table style="width=100%">
+        <tr>
+          <td>
+            <img src="images/part6-split2.png" align="middle" width="400px" />
+            <figcaption align="middle">Various flips produces slightly less rounding</figcaption>
+          </td>
+          <td>
+            <img src="images/part6-split3.png" align="middle" width="400px" />
+            <figcaption align="middle">This is more apparent with more subdivision.</figcaption>
+          </td>
+        </tr>
+        </table>
+        </div>
+
+        <p>Without any changes, the basic cube becomes slightly asymmetrical due to the two triangles on each face affecting
+          the four vertices of that face unequally: vertices with higher degree become closer to the center, while those with
+          lesser degree remain more pointed. This can be avoided with a single edge split on the diagonal edge on each face,
+          resulting in a symmetric X on each face. This results in equal degree on all vertices and allows for symmetric division.
+        </p>
+
+        <div align="middle">
+          <table style="width=100%">
+            <tr>
+              <td>
+                <img src="images/part6-cube1.png" align="middle" width="250px" />
+                <figcaption align="middle">No changes, Step 1.</figcaption>
+              </td>
+              <td>
+                <img src="images/part6-cube2.png" align="middle" width="250px" />
+                <figcaption align="middle">No changes, Step 2.</figcaption>
+              </td>
+              <td>
+                <img src="images/part6-cube3.png" align="middle" width="250px" />
+                <figcaption align="middle">No changes, Step 3.</figcaption>
+              </td>
+              <td>
+                <img src="images/part6-cube4.png" align="middle" width="250px" />
+                <figcaption align="middle">No changes, Step 4.</figcaption>
+              </td>
+            </tr>
+            <br>
+            <tr>
+              <td>
+                <img src="images/part6-xcube1.png" align="middle" width="250px" />
+                <figcaption align="middle">With one split, Step 1.</figcaption>
+              </td>
+              <td>
+                <img src="images/part6xcube2.png" align="middle" width="250px" />
+                <figcaption align="middle">With one split, Step 2.</figcaption>
+              </td>
+              <td>
+                <img src="images/part6-xcube3.png" align="middle" width="250px" />
+                <figcaption align="middle">With one split, Step 3.</figcaption>
+              </td>
+              <td>
+                <img src="images/part6-xcube4.png" align="middle" width="250px" />
+                <figcaption align="middle">With one split, Step 4.</figcaption>
+              </td>
+            </tr>
+          </table>
+        </div>
+
+
+    <h2 align="middle">Section III: Optional Extra Credit</h2>
+    <p>If you are not participating in the optional mesh competition, don't worry about this section!</p>
+
+    <h3 align="middle">Part 7: Design your own mesh!</h3>
+    
+    <br /><br />
+   
+    <p>Link: <a href="https://cal-cs184-student.github.io/sp22-project-webpages-yanlarry/">https://cal-cs184-student.github.io/sp22-project-webpages-yanlarry/</a></p>
+    
+</body>
+
 </html>
