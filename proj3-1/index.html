@@ -1,7 +1,223 @@
-<html>
-	<head>
-	</head>
-	<body>
-		Project 3-1 here
-	</body>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<style>
+  body {
+    padding: 100px;
+    width: 1000px;
+    margin: auto;
+    text-align: left;
+    font-weight: 300;
+    font-family: 'Open Sans', sans-serif;
+    color: #121212;
+  }
+  h1, h2, h3, h4 {
+    font-family: 'Source Sans Pro', sans-serif;
+  }
+</style>
+<title>CS 184 Pathtracer 1</title>
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<link href="https://fonts.googleapis.com/css?family=Open+Sans|Source+Sans+Pro" rel="stylesheet">
+</head>
+
+
+<body>
+
+<h1 align="middle">CS 184: Computer Graphics and Imaging, Spring 2018</h1>
+<h1 align="middle">Project 3-1: Pathtracer 1</h1>
+<h2 align="middle">Larry Yan, CS184</h2>
+
+<br><br>
+
+<div>
+
+<h2 align="middle">Overview</h2>
+<!-- <p>Give a high-level overview of what you implemented in this project. Think about what you've built as a whole. Share your thoughts on what interesting things you've learned from completing the project.</p> -->
+<p>In this project, I implemented elements of a ray-tracing renderer. First, I determined how to set up rays originating from
+	a camera outward to the scene, and sample the illumination at each of those pixel locations. I then implemented the logic
+	for determining if a ray intersected a triangle and a sphere, as well as the locations of those intersections. To speed up
+	these intersections, I set up a bounding volume heirarchy to organize the mesh elements and reduce the number of necessary
+	intersection tests. Afterwards, I implemented lighting, both directly (from light sources to the camera, and bounced off of
+	surfaces from light sources) with hemisphere and light source sampling and indirectly (bounced off of other objects) with
+	monte carlo global illumination. Unfortunately, while I was generally successful with triangle meshes, some element of spherical
+	intersections or normals, or some inverted ray calculation, made indirect lighting on spheres problematic, which I was not
+	able to resolve.
+</p>
+
+<h3 align="middle">Part 1: Ray Generation and Scene Intersection</h3>
+
+    <p>For ray generation, in order to generate a sample for a particular pixel, we randomly sample a particular location in that
+		pixel, and convert it into camera space to create a ray (start at camera and go through the corresponding point on the
+		sensor). We then take that ray and transform it into world space with the camera location and rotation matrix to determine
+		what it sees. Additionally, we set the minimum and maximum intersection distances of the ray. We would then take this ray
+		and test it with the primitives, either all of them or through traversing a BVH tree to find the closest intersection, 
+		indicating what this sample ray returns. We repeat this process a number of times and average the samples for the pixel value.
+	</p>
+	<p>
+		For primitive intersections,
+		I used the Moller Trumbore algorithm to determine whether a triangle was intersected, as well as what the barycentric
+		coordinates were. If an intersection did occur between the ray and triangle within the specified bounds, the properties of
+		the intersection were saved into the Intersection object and the ray modified to show that this was the closest intersection
+		thus far. Similarly, for spheres, a modified quadratic was used to determine intersections, and the closest intersection (if
+		any) of the two possible ones was stored if needed. 
+	</p>
+
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="images/p1-CBspheres.png" align="middle" width="300px"/>
+        <figcaption align="middle">Spheres</figcaption>
+      </td>
+      <td>
+        <img src="images/p1-CBgems.png" align="middle" width="300px"/>
+        <figcaption align="middle">Gems</figcaption>
+      </td>
+	  <td>
+		<img src="images/p1-banana.png" align="middle" width="300px"/>
+		<figcaption align="middle">Banana</figcaption>
+	  </td>
+    </tr>
+  </table>
+</div>
+
+
+<h3 align="middle">Part 2: Bounding Volume Hierarchy</h3>
+
+    <p>To make the BVH, I first took the input list of primitives and checked if they were smaller than the threshold
+		for a BVH node. If it was, then it would be placed in a node and construction would end there. Otherwise, I determined
+		the maximum size axis of the BVH bounding box, and sorted the input primitives based on their centroid locations on that
+		axis, and split them into two equal groups. This would be a relatively simple approach toward separating the primitives
+		into groups that did not require heavy calculations, and would always keep equal numbers on each side of the tree (preventing
+		infinite recursion or unequal splits and producing an even binary tree), even if it did not guarentee perfectly efficient 
+		separation. I then called the function on the two new half lists to further split them, until the full BVH was created.
+	</p>
+
+    <div align="middle">
+		<table style="width=100%">
+		  <tr>
+			<td>
+			  <img src="images/p2-CBlucy.png" align="middle" width="300px"/>
+			  <figcaption align="middle">Lucy</figcaption>
+			</td>
+			<td>
+			  <img src="images/p2-cow.png" align="middle" width="300px"/>
+			  <figcaption align="middle">Cow</figcaption>
+			</td>
+			<td>
+			  <img src="images/p2-maxplanck.png" align="middle" width="300px"/>
+			  <figcaption align="middle">Max Planck</figcaption>
+			</td>
+		  </tr>
+		</table>
+	  </div>
+
+	  <p>Render times for moderately sized images with BVHs were much faster than without. For banana, it took 3.6152 seconds
+		  to render without BVH construction, while with BVH, it took between 0.836 and 1.089 seconds to render. For cow, a more
+		  complex structure, render times improved from 18.9347 seconds to between 0.1152 and 0.1918 seconds, an even more dramatic
+		  increase. The logarithmic reduction in intersection tests needed makes rendering complex scenes, as well as later lighting
+		  tests possible. 
+	  </p>
+
+<h3 align="middle">Part 3: Direct Illumination</h3>
+
+    <p>For hemisphere sampling, we sample a random direction from the intersection point on the surface and generate a ray going
+		outward in that direction (first converting that direction into world space). Then, assuming that the ray intersects something,
+		we use the reflection equation to determine the light from the sampled direction to the outgoing direction, based on the product
+		of its reflectance from its bdsf and angles, light emissions, and the cosine of the angle, and normalize by the probability (1/2pi).
+		We then average all of the samples we take to produce the final lighting value.
+	</p>
+	<p>For importance sampling, instead of sampling in random directions on the hemisphere, we instead loop over all of the lights in
+		the scene, performing ns_area_light samples on each of them instead (or, for point lights, a single sample weighed to be equal to 
+		the others). For each of these samples, we sample a ray from the intersection point to a point on the light, and check to see if
+		there are any intermediate obstructions. If there are not, we add the contribution from the light, again weighting it by the bdsf
+		reflectance, returned radiance, and cosine, as well as the returned pdf of the sample. We divide the light totals by ns_area_light
+		to get the total light reflected from that point. 
+	</p>
+
+    <div align="middle">
+		<table style="width=100%">
+		  <tr>
+			<td>
+			  <img src="images/p3-bunny_H_64_32.png" align="middle" width="400px"/>
+			  <figcaption align="middle">Bunny, hemisphere</figcaption>
+			</td>
+			<td>
+			  <img src="images/p3-bunny_64_32.png" align="middle" width="400px"/>
+			  <figcaption align="middle">Bunny, light</figcaption>
+			</td>
+		  </tr>
+		  <br>
+		  <tr>
+			<td>
+			  <img src="images/p3-coil_H_64_32.png" align="middle" width="400px"/>
+			  <figcaption align="middle">Coil, hemisphere</figcaption>
+			</td>
+			<td>
+			  <img src="images/p3-coil_64_32.png" align="middle" width="400px"/>
+			  <figcaption align="middle">Coil, light</figcaption>
+			</td>
+		  </tr>
+		</table>
+	  </div>
+    <br />
+
+	<p>Generally, uniform hemisphere sampling tends to be noisier than lighting sampling, as it is less likely to produce rays
+		that intersect a light source, producing greater variance in illumination between pixels. The walls for the above images
+		tend to be much grainier for the hemisphere sampling, while light sampling is much crisper. Similarly, the shadows are more
+		diffuse for hemisphere, while light has smoother shadows closer to the true amount of light reaching that location.
+	</p>
+
+	<div align="middle">
+		<table style="width=100%">
+		  <tr>
+			<td>
+			  <img src="images/p3-bunny_1.png" align="middle" width="400px"/>
+			  <figcaption align="middle">Bunny, light sampling, 1 light ray</figcaption>
+			</td>
+			<td>
+			  <img src="images/p3-bunny_4.png" align="middle" width="400px"/>
+			  <figcaption align="middle">Bunny, light sampling, 4 light rays</figcaption>
+			</td>
+		  </tr>
+		  <br>
+		  <tr>
+			<td>
+			  <img src="images/p3-bunny_16.png" align="middle" width="400px"/>
+			  <figcaption align="middle">Bunny, light sampling, 16 light rays</figcaption>
+			</td>
+			<td>
+			  <img src="images/p3-bunny_64.png" align="middle" width="400px"/>
+			  <figcaption align="middle">Bunny, light sampling, 64 light rays</figcaption>
+			</td>
+		  </tr>
+		</table>
+	  </div>
+    <br />
+
+	<p>With fewer samples, there is higher variance in whether the sampled ray for an area light source is occluded, resulting in spotty
+		shadows that are either entirely black or fully lit at 1 sample and grainier shadows at 4 and 16, settling into a smoother transition
+		for 64 samples.
+	</p>
+
+
+<h3 align="middle">Part 4: Global Illumination</h3>
+
+    <p>For indirect lighting, instead of just returning light from a single bounce, we additionally with some probability (0.33) generate
+		another random ray from the intersection along a sampled direction, which we recursively call at_least_one_bounce on. We take this
+		light and modify it according to bdsf reflectance, cosine, and pdf, just as we would if this was a light source.
+	</p>
+
+	<img src="images/p4-bunny-1024.png" align="middle" width="1000px"/>
+    <br>
+    <figcaption align="middle">Bunny, 1024 samples.</figcaption>
+    <br>
+
+<h3 align="middle">Part 5: Adaptive Sampling</h3>
+
+   
+<p>Link: <a href="https://cal-cs184-student.github.io/sp22-project-webpages-yanlarry/">https://cal-cs184-student.github.io/sp22-project-webpages-yanlarry/</a></p>
+
+</body>
 </html>
