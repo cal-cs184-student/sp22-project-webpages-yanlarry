@@ -1,7 +1,189 @@
-<html>
-	<head>
-	</head>
-	<body>
-		Project 3-2 here
-	</body>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<style>
+  body {
+    padding: 100px;
+    width: 1000px;
+    margin: auto;
+    text-align: left;
+    font-weight: 300;
+    font-family: 'Open Sans', sans-serif;
+    color: #121212;
+  }
+  h1, h2, h3, h4 {
+    font-family: 'Source Sans Pro', sans-serif;
+  }
+</style>
+<title>CS 184 Pathtracer 2</title>
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<link href="https://fonts.googleapis.com/css?family=Open+Sans|Source+Sans+Pro" rel="stylesheet">
+</head>
+
+
+<body>
+
+<h1 align="middle">CS 184: Computer Graphics and Imaging, Spring 2018</h1>
+<h1 align="middle">Project 3-2: Pathtracer 2</h1>
+<h2 align="middle">Larry Yan, CS184</h2>
+
+<br><br>
+
+<div>
+
+<h2 align="middle">Overview</h2>
+<!-- <p>Give a high-level overview of what you implemented in this project. Think about what you've built as a whole. Share your thoughts on what interesting things you've learned from completing the project.</p> -->
+<p>In this project, I updated a ray-tracing renderer with additional features. I allowed for the use of additional bsdf types with
+	reflection and refraction, which could depict more complex light pathing. Additionally, I modified camera sampling to simulate
+	a thin lens, which could be adjusted to create a rendered image focusing on different areas and with varied depth of field.
+</p>
+
+<h3 align="middle">Part 1: Mirror and Glass Materials</h3>
+
+	<div align="middle">
+		<table style="width=100%">
+		  <tr>
+			<td>
+			  <img src="images/p1-spheres-depth-0.png" align="middle" width="400px" />
+			  <figcaption align="middle">0 bounces</figcaption>
+			</td>
+			<td>
+			  <img src="images/p1-spheres-depth-1.png" align="middle" width="400px" />
+			  <figcaption align="middle">1 bounce</figcaption>
+			</td>
+		</tr>
+		<br>
+		<tr>
+			<td>
+			  <img src="images/p1-spheres-depth-2.png" align="middle" width="400px" />
+			  <figcaption align="middle">2 bounces</figcaption>
+			</td>
+			<td>
+			  <img src="images/p1-spheres-depth-3.png" align="middle" width="400px" />
+			  <figcaption align="middle">3 bounces</figcaption>
+			</td>
+		</tr>
+		<br>
+		<tr>
+			<td>
+			<img src="images/p1-spheres-depth-4.png" align="middle" width="400px" />
+			<figcaption align="middle">4 bounces</figcaption>
+			</td>
+			<td>
+			<img src="images/p1-spheres-depth-5.png" align="middle" width="400px" />
+			<figcaption align="middle">5 bounces</figcaption>
+			</td>
+		  </tr>
+		  <br>
+		<tr>
+			<td>
+			<img src="images/p1-spheres-depth-100.png" align="middle" width="400px" />
+			<figcaption align="middle">100 bounces</figcaption>
+			</td>
+		  </tr>
+		</table>
+		<figcaption align="middle">Spheres rendered with limited numbers of bounces.</figcaption>
+	  </div>
+	  <br>
+
+		<p> 0 bounces: only the light source emits light directly to the camera without any bounces.</p>
+		<p> 1 bounce: the walls and floor are illuminated by the light, and can bounce light to the camera. The spheres themselves
+			only show reflections of the light source, as light can only bounce off of the sphere surface in one specific direction,
+			and only those that happen to reflect onto the light source can be lit in one bounce. The right sphere has some variance
+			in its relection due to the random inclusion of the refraction component (still black due to more bounces required).</p>
+		<p> 2 bounces: the ceiling is now illuminated due to light bounces off of the other surfaces. The mirror sphere is able
+			to reflect light from the walls and floor to the camera. The glass ball is still black, as it takes one bounce from 
+			the light source to the wall, one to go into the sphere, and one to go out of the sphere to the camera. If there was a
+			light source behind the sphere, it would be visible now. There is also a small reflection on the right sphere from the light source
+			reflection on the left sphere.
+		</p>
+		<p> 3 bounces: the glass sphere is now visible (4 rays: light source to wall, wall into sphere, across sphere, out of sphere, making 3 bounces). The reflection sphere now shows the ceiling. The light that refracted
+			through the glass sphere to hit the floor (2 bounces) is now visible (one more bounce to the camera).
+		</p>
+		<p> 4 bounces: the reflection sphere now shows the refraction sphere as not black. In general the reflection 
+			sphere shows what is visible one bounce ago (as reflecting takes one bounce). Another beam of refracted light, this time
+			from the reflection in the mirror sphere, is visible on the right wall. There is also some additional reflection off of
+			the bottom of the glass sphere due to the concentrated light off of the floor underneath it.
+		</p>
+		<p> 5 and 100 bounces: no major visible changes noticed, more fine details could exist between the mirror sphere's reflection
+			and the glass sphere, but it does not seem detectable.
+		</p>
+
+
+
+<h3 align="middle">Part 4: Depth of Field</h3>
+
+    <p>In a pinhole camera model, each image location only receives light along a single ray: there is only one possible line 
+		along which light can travel from the pinhole to that location. This means that it perfectly captures the exact light
+		from outside without any blurring. In a thin lens model, a given image location can receive light from anywhere on the
+		lens, which could reflect light from slightly different locations. Depending on the distance between image sensor and
+		lens, different locations would be in focus, while areas outside would be blurred, as their ideal focal point would be
+		either in front of or behind the sensor.
+	</p>
+
+    <div align="middle">
+		<table style="width=100%">
+		  <tr>
+			<td>
+			  <img src="images/p4-CBdragon_screenshot_48_00.png" align="middle" width="400px" />
+			  <figcaption align="middle">0 (pinhole)</figcaption>
+			</td>
+			<td>
+			  <img src="images/p4-dragon-46_30.png" align="middle" width="400px" />
+			  <figcaption align="middle">4.6</figcaption>
+			</td>
+		</tr>
+		<br>
+		<tr>
+			<td>
+			  <img src="images/p4-CBdragon_screenshot_48_10.png" align="middle" width="400px" />
+			  <figcaption align="middle">0.10</figcaption>
+			</td>
+			<td>
+			  <img src="images/p4-dragon-48_30.png" align="middle" width="400px" />
+			  <figcaption align="middle">4.8</figcaption>
+			</td>
+		</tr>
+		<br>
+		<tr>
+			<td>
+			  <img src="images/p4-dragon-48_30.png" align="middle" width="400px" />
+			  <figcaption align="middle">0.30</figcaption>
+			</td>
+			<td>
+			  <img src="images/p4-dragon-50_30.png" align="middle" width="400px" />
+			  <figcaption align="middle">5.0</figcaption>
+			</td>
+		</tr>
+		<br>
+		<tr>
+			<td>
+			<img src="images/p4-dragon-48_50.png" align="middle" width="400px" />
+			<figcaption align="middle">0.50</figcaption>
+			</td>
+			<td>
+			<img src="images/p4-dragon-52_30.png" align="middle" width="400px" />
+			<figcaption align="middle">5.2</figcaption>
+			</td>
+		  </tr>
+		</table>
+		<figcaption align="middle">A (mirror, not microfacet) dragon rendered with varying aperatures and focal lengths. </figcaption>
+	  </div>
+	  <br>
+
+	  <p> Aperatures (left, 4.8): While the pinhole shows the full scene with perfect clarity, the corners of the room and extremities
+		  of the dragon become slightly blurred for 0.10. There becomes significant blurring of the head and some on the tail for 0.30,
+		  and by 0.50, the front and back of the room are highly blurred, and only the central segment of the dragon is in focus.
+	  </p>
+	  <p> Depths (right, 0.30): At 4.6, the head of the dragon is in focus; at 4.8, the central regions are in focus, with some blurring at
+		  the head and tail; at 5.0, the head is blurred and the back is in focus; and at 5.2, only the very back is somewhat in focus,
+		  with everything else blurred.
+	  </p>
+
+
+
+   
+<p>Link: <a href="https://cal-cs184-student.github.io/sp22-project-webpages-yanlarry/">https://cal-cs184-student.github.io/sp22-project-webpages-yanlarry/</a></p>
+
+</body>
 </html>
